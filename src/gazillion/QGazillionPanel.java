@@ -27,6 +27,10 @@ import static utils.Message.*;
  * @version 20190328
  */
 public class QGazillionPanel extends QPanel implements Observer {
+
+    private QPanel changePiece;
+    private JButton changePieceButton;
+
     private QTheme theme;
     private QGame game;
     private QPlayer player;
@@ -78,31 +82,54 @@ public class QGazillionPanel extends QPanel implements Observer {
         giveUp.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
-                giveUp.setEnabled(false);
-                game.stopTimer();
-                locked = true;
-                QSoundLoader.getInstance().playClip("shot");
-                musicID = QSoundLoader.getInstance().playSound("air");
-                game.notifyObservers( );
-                JOptionPane.showMessageDialog(frame, "It's okay to give up. We're cool. Not everybody can be a winner. Definitely not your fault.");
+
+                int choice = JOptionPane.showConfirmDialog(frame,
+                        "Are you sure?", "Back Confirmation", JOptionPane.YES_NO_OPTION);
+
+                if (choice == 0) {
+                    giveUp.setEnabled(false);
+                    game.stopTimer();
+                    locked = true;
+                    QSoundLoader.getInstance().playClip("shot");
+                    musicID = QSoundLoader.getInstance().playSound("air");
+                    game.lose();
+                    JOptionPane.showMessageDialog(frame, theme.getMessage()); //"It's okay to give up. We're cool. Not everybody can be a winner. Definitely not your fault."
+                    frame.setActivePanel(parent);
+                    QSoundLoader.getInstance().stopSound(musicID);
+                }
             }
         });
-        util = new QUtilityPanel(this,frame,game);
-        JButton back = this.getBackButton();
-        back.addActionListener(new ActionListener() {
+        util = new QUtilityPanel(this,frame,game, player);
+
+	changePiece = new QChangePiecePanel( parent, frame, player, theme, game, this);
+
+        changePieceButton = new JButton( "Change selected piece");
+
+        changePieceButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
 
-                QSoundLoader.getInstance().stopSound(musicID);
-
+                if( selectedPiece != null) {
+                    JButton button = (JButton) actionEvent.getSource();
+                    if (button.isEnabled()) {
+                        frame.setActivePanel(changePiece);
+                        button.setEnabled(false);
+                    }
+                }
             }
         });
-        util.add(back);
+
+        util.add( this.changePieceButton);
+
         util.add(this.giveUp);
 
-        add(util, BorderLayout.SOUTH);
+        add( util, BorderLayout.SOUTH);
         game.addObserver(this);
         game.addObserver(this.parent);
+    }
+
+    public void disableTimePowerup() {
+        util.disableTimeButton();
     }
 
     public class QGazillionMotionListener extends MouseMotionAdapter {
@@ -158,7 +185,6 @@ public class QGazillionPanel extends QPanel implements Observer {
             if (!locked) {
                 if (selectedPiece != null) {
                     int notches = e.getWheelRotation();
-                    System.out.println(notches);
                     boolean direction = true;
                     if (notches < 0) {
                         notches = -notches;
@@ -196,25 +222,19 @@ public class QGazillionPanel extends QPanel implements Observer {
             if (msg.getContents()[GAME_OVER]) {
                 QSoundLoader.getInstance().playClip("shot");
                 QSoundLoader.getInstance().playClip("die");
-                //JOptionPane.showMessageDialog(frame, "You died.");
                 game.stopTimer();
                 locked = true;
-
-            } else if (msg.getContents()[PLAY_BEAT]) {
-                QSoundLoader.getInstance().playClip("beat");
+                JOptionPane.showMessageDialog(frame, "You lost.");
+                frame.setActivePanel( parent);
+            } else if (msg.getContents()[GAME_UP]) {
             } else if (msg.getContents()[GAME_WON]){
                 game.stopTimer();
                 QSoundLoader.getInstance().playClip("victory");
-                Thread t = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        //JOptionPane.showMessageDialog(null, "You are a huge nerd!.");
-                    }
-                });
-                t.run();
                 revalidate();
                 repaint();
                 locked = true;
+                JOptionPane.showMessageDialog(frame, "You won!");
+                frame.setActivePanel( parent);
             }
         }
         util.update(msg);
@@ -255,7 +275,7 @@ public class QGazillionPanel extends QPanel implements Observer {
                 Shape circle = new Ellipse2D.Double(centerX - radius, centerY - radius, 2.0 * radius, 2.0 * radius);
                 g2d.draw(circle);
                 try {
-                    BufferedImage asset = theme.getAssetOf(((QPiece) (entry.getValue())).getPieceType());
+                    BufferedImage asset = theme.getAssets().get(((QPiece) (entry.getValue())).getID());
                     g2d.drawImage(asset, (int)centerX - theme.getSize()/2, (int)centerY - theme.getSize()/2, null);
                 } catch(NullPointerException e) {
 
@@ -276,7 +296,7 @@ public class QGazillionPanel extends QPanel implements Observer {
 
         public void drawSelectedPieceAt(Graphics g, int x, int y) {
             if(selectedPiece != null) {
-                BufferedImage asset = theme.getAssetOf(selectedPiece.getPieceType());
+                BufferedImage asset = theme.getAssets().get(selectedPiece.getID());
                 int offsetX = x - theme.getSize() / 2;
                 int offsetY = y - theme.getSize() / 2;
                 Graphics2D g2d = (Graphics2D) g;
@@ -292,5 +312,14 @@ public class QGazillionPanel extends QPanel implements Observer {
                 repaint();
             }
         }
+    }
+
+ public QPieceCollectionPanel getQPieceCollectionPanel(){
+        return piecePanel;
+    }
+
+    public QPiece getSelectedPiece( ){
+
+        return selectedPiece;
     }
 }

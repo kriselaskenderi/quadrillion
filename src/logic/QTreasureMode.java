@@ -15,13 +15,14 @@ import java.util.*;
 public class QTreasureMode extends QMode{
 
     private int gridSize = 6;
+    private int lastPosition;
     private int lastDisplayedHint;
 
     private static final int locked = 0;
     private static final int unlocked = 1;
     private static final int played = 2;
+    private static final int revealed = 3;
 
-    // private String currentHintMessage;       // maybe add later
     private int [][] gameGrid;
 
     private int [][] treasureGrid;              // to keep track of the treasure positions
@@ -34,37 +35,45 @@ public class QTreasureMode extends QMode{
     public QTreasureMode( QPlayer player) {
         super( player);
 
-        gameGrid = new int[gridSize][gridSize];
+        gameGrid = player.getTreasureModeGrid();
+        if( gameGrid == null) {
+            gameGrid = new int[gridSize][gridSize];
 
-        // initialize all levels as locked
-        for( int i = 0; i < gridSize; i++)
-            for( int j = 0; j < gridSize; j++)
-                gameGrid[i][j] = locked;
+            // initialize all levels as locked
+            for (int i = 0; i < gridSize; i++)
+                for (int j = 0; j < gridSize; j++)
+                    gameGrid[i][j] = locked;
 
-        // enable the corner levels
-        gameGrid[0][0] = unlocked;
-        gameGrid[0][gridSize - 1] = unlocked;
-        gameGrid[gridSize - 1][0] = unlocked;
-        gameGrid[gridSize -1][gridSize -1] = unlocked;
+            // enable the corner levels
+            gameGrid[0][0] = unlocked;
+            gameGrid[0][gridSize - 1] = unlocked;
+            gameGrid[gridSize - 1][0] = unlocked;
+            gameGrid[gridSize - 1][gridSize - 1] = unlocked;
+        }
 
-        // randomly generate treasure positions
-        treasureGrid = new int[gridSize][gridSize];
+        treasureGrid = player.getTreasureGrid();
 
-        for( int i = 0; i < gridSize; i++)
-            for( int j = 0; j < gridSize; j++)
-                treasureGrid[i][j] = 0;
+        if( treasureGrid == null) {
+            // randomly generate treasure positions
+            treasureGrid = new int[gridSize][gridSize];
 
-        for( int i = 0; i < 12; i++){
-            int rand = (int)(Math.random()*( gridSize * gridSize));
-            if( treasureGrid[ rand / gridSize ][ rand % gridSize] == 1)
-                i--;
-             else {
-                treasureGrid[rand / gridSize][rand % gridSize] = 1;
-                System.out.println("treasure: " + rand);
+            for (int i = 0; i < gridSize; i++)
+                for (int j = 0; j < gridSize; j++)
+                    treasureGrid[i][j] = 0;
+
+            for (int i = 0; i < 12; i++) {
+                int rand = (int) (Math.random() * (gridSize * gridSize));
+                if (treasureGrid[rand / gridSize][rand % gridSize] == 1)
+                    i--;
+                else {
+                    treasureGrid[rand / gridSize][rand % gridSize] = 1;
+                }
             }
         }
-        lastDisplayedHint = 0;
-        collectedPieces = 0;
+
+        lastDisplayedHint = player.getLastDisplayedHint();
+        lastPosition = waffle();
+        collectedPieces = player.getNoPieces();
         currentX = -1;
         currentY = -1;
 
@@ -77,7 +86,6 @@ public class QTreasureMode extends QMode{
     public QModePanel createPanel( QPanel panel, QFrame frame) {
 
         modePanel = new QTreasureModePanel( this, panel, frame);
-        updatePanelColors();
         return modePanel;
     }
 
@@ -88,15 +96,36 @@ public class QTreasureMode extends QMode{
         return gridSize;
     };
 
+    public int[][] getGameGrid() {
+        return gameGrid;
+    }
+
+    public int[][] getTreasureGrid() {
+        return treasureGrid;
+    }
+
+    public int waffle() {
+
+        for (int i = gridSize - 1; i > -1; i--)
+            for (int j = gridSize - 1; j > -1; j--) {
+                if (treasureGrid[i][j] == 1) {
+                    return i * gridSize + j;
+                }
+            }
+
+        return -1;
+    }
+
     /**
      * To get index of the button to highlight / change color ?????
      */
     public void getNextTreasurePosition(){
-
-        if( player.getNoHints() > 0) {
+        int nh = player.getNoHints();
+        if( nh > 0 && lastDisplayedHint < lastPosition) {
 
             // decrease player hints
-            player.setNoHints(  player.getNoHints() - 1 );
+            player.setNoHints(  nh - 1 );
+            //player.notifyObservers();
 
             // find next hint to display
             int i;
@@ -110,6 +139,7 @@ public class QTreasureMode extends QMode{
             }
 
             if(found) {
+                gameGrid[i / gridSize][i % gridSize] = revealed;
                 lastDisplayedHint = i;
                 modePanel.updateTreasureColor(i);
             }
@@ -121,17 +151,20 @@ public class QTreasureMode extends QMode{
             for( int j = 0; j < gridSize; j++) {
                 if( gameGrid[i][j] == unlocked){
                     modePanel.updateAdjacentColor( i * gridSize + j);
-                }else if( gameGrid[i][j] == played) {
-                    modePanel.updatePlayedColor( i * gridSize + j);
+                }
+                else if( gameGrid[i][j] == played) {
+                	modePanel.updatePlayedColor( i * gridSize + j);
                 }
             }
     }
 
-    public void updatePanel(){
-        updatePanelColors();
-        modePanel.updatePlayerInformation();
-    }
+    public void saveMode(){
 
+        player.setNoPieces( collectedPieces);
+        player.setTreasureGrid( treasureGrid);
+        player.setTreasureModeGrid( gameGrid);
+        player.setLastDisplayedHint( lastDisplayedHint);
+    }
 
     //////////////////////////////// TO BE CALLED AFTER GAME HAS BEEN PLAYED ///////////////////////////////////
 
@@ -142,7 +175,7 @@ public class QTreasureMode extends QMode{
     @Override
     public QAward evaluateAwardForCurrentGame( boolean won){
 
-        if(  gameGrid[currentX][currentY] != 2){
+        if(  gameGrid[currentX][currentY] != played){
 
             QAward result = null;
 
@@ -157,7 +190,7 @@ public class QTreasureMode extends QMode{
 
                     //update treasure panel
                     QPieceFactory pieceFactory = new QPieceFactory();
-                    modePanel.updateTreasurePanel (pieceFactory.getPieceOfType( QPieceType.valueOf( "PIECE_TYPE_" + (collectedPieces+1))));
+                    modePanel.updateTreasurePanel (pieceFactory.getPieceOfType( QPieceType.valueOf( "PIECE_TYPE_" + (collectedPieces+1)), collectedPieces));
 
                     // add new piece to the collection
                     collectedPieces++;
@@ -173,7 +206,7 @@ public class QTreasureMode extends QMode{
             else {
                 player.setHealth( player.getNoHealth() - 1);
 
-                ///////////// CHECK IF PLAYER'S HEALTH IS 0 //////////////////////////////////////////////////////////
+                ///////////// CHECK IF PLAYER'S HEALTH IS 0 ///////////////
                 if( player.getNoHealth() == 0){
                     modePanel.displayGameOver();
                 }
@@ -184,7 +217,6 @@ public class QTreasureMode extends QMode{
         }
         return null;
     }
-
 
     /**
      * Updating mode information after current game has finished. To be called after game is finished.
@@ -211,8 +243,9 @@ public class QTreasureMode extends QMode{
             if( currentY - 1 > -1 && gameGrid[currentX][currentY - 1] != 2) {
                 gameGrid[currentX][currentY - 1] = 1;
             }
-        }
 
+            updatePanelColors();
+        }
     }
 
     /////////////////////////////////////// TO INITIATE A NEW GAME ////////////////////////////////////////////
@@ -222,9 +255,6 @@ public class QTreasureMode extends QMode{
     private void setCurrentLocation( int level){
         currentY = level % gridSize;
         currentX = level / gridSize;
-
-        System.out.println( " X: " + currentX);
-        System.out.println( " Y: " + currentY);
     }
 
     /**
@@ -236,16 +266,12 @@ public class QTreasureMode extends QMode{
         setCurrentLocation( i);
 
         if( gameGrid[ currentX][ currentY] != 0){
-            return initQGame( true, -1);
+            QGameFactory factory = new QGameFactory();
+            QGame game = factory.getRandomQGame(300000);
+            game.startTimer();
+            return game;
         }
-
         return null;
-    }
-
-    @Override
-    public QGame initQGame( boolean randomGame, int levelIndex) {
-
-           return super.initQGame( true, -1);
     }
 
 }

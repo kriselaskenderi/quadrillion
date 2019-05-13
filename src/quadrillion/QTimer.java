@@ -81,6 +81,7 @@ public class QTimer implements Observable {
             }
         };
         timer.scheduleAtFixedRate(task, 0, 100);
+        notifyObservers();
     }
 
     /**
@@ -99,6 +100,7 @@ public class QTimer implements Observable {
      */
     public void setTimeRemaining(long timeRemaining) {
         this.timeRemaining = timeRemaining;
+        notifyObservers();
     }
 
     /**
@@ -138,13 +140,11 @@ public class QTimer implements Observable {
     }
 
     public void notifyObservers() {
-        System.out.println(timeRemaining);
+        //System.out.println(timeRemaining);
         for(Observer o: observers) {
             Message msg;
             if(timeRemaining <= 0) {
                 msg = new Message("1100");
-            } else if (timeRemaining == 100000 ){
-                msg = new Message("1001");
             } else {
                 msg = new Message("0000");
             }

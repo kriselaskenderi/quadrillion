@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static utils.Message.GAME_OVER;
+import static utils.Message.GAME_UP;
 
 /**
  * Defines a game of Quadrillion in the style of Gazillion, using QPiece objects, a QBoard object, a QTimer object, and
@@ -25,7 +26,7 @@ public class QGame implements Observable, Observer {
     private Map<QPiece, List<QCoordinate>> pieceToCoordinateMap;
     private Map<QCoordinate, QPiece> coordinateToPieceMap;
     private List<QCoordinate> blockerCoordinates;
-    private boolean gameWon;
+    private boolean gameUp;
     private List<Observer> observers;
 
     /**
@@ -36,7 +37,7 @@ public class QGame implements Observable, Observer {
      */
     public QGame(QBoard board, long timeRemaining) {
         // game not won yet
-        gameWon = false;
+        gameUp = false;
         // init timer
         timer = new QTimer(timeRemaining);
         // set board object of game
@@ -46,8 +47,9 @@ public class QGame implements Observable, Observer {
         // init pieces
         pieces = new ArrayList<>();
         QPieceFactory pieceFactory = new QPieceFactory();
+        int ID = 0;
         for (QPieceType qType : QPieceType.values()) {
-            pieces.add(pieceFactory.getPieceOfType(qType));
+            pieces.add(pieceFactory.getPieceOfType(qType, ID++));
         }
         // init lists and maps
         pieceToCoordinateMap = new HashMap<>();
@@ -143,6 +145,11 @@ public class QGame implements Observable, Observer {
         return true;
     }
 
+    public void lose() {
+        gameUp = true;
+        notifyObservers();
+    }
+
     /**
      * Returns if the user has run out of time.
      *
@@ -211,14 +218,22 @@ public class QGame implements Observable, Observer {
             for(Observer o: observers) {
                 o.update(msg);
             }
+            timer.stop();
+        } else if (gameUp) {
+            msg = new Message("1001");
+            for(Observer o: observers) {
+                o.update(msg);
+            }
+            timer.stop();
         }
         timer.notifyObservers();
     }
 
     @Override
     public void update(Message msg) {
-        if(msg.isValid() && msg.getContents()[GAME_OVER]) {
-            gameWon = false;
+        if(msg.isValid() && msg.getContents()[GAME_UP]) {
+            gameUp = true;
+            notifyObservers();
         }
     }
 }

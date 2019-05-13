@@ -2,11 +2,13 @@ package logic;
 import gazillion.*;
 import quadrillion.*;
 import utils.Message;
+import utils.QProfile;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 
@@ -25,6 +27,12 @@ public class QTreasureModePanel extends QModePanel {
     private QTreasureMode treasureMode;
     private JPanel topPanel;
     private JButton hintButton;
+    private JButton resetButton;
+
+    private static final int locked = 0;
+    private static final int unlocked = 1;
+    private static final int played = 2;
+    private static final int revealed = 3;
 
     public QTreasureModePanel(QMode currMode, QPanel parent, QFrame frame) {
 
@@ -33,7 +41,7 @@ public class QTreasureModePanel extends QModePanel {
 
         this.setLayout(new BorderLayout());
 
-        ////////////////////////// PLAYER INFO AT THE TOP /////////////////////////////////////////////////////////////
+        ////////////////////////// PLAYER INFO AT THE TOP ///////////////////////////
         topPanel = new JPanel();
 
         // top panel has border layout
@@ -45,72 +53,91 @@ public class QTreasureModePanel extends QModePanel {
 
 
         // add hint button as last thing of topPanel
-        hintButton = new JButton("Hint");
-        topPanel.add(hintButton, BorderLayout.EAST);
+        hintButton = new JButton("");
+        ImageIcon icon = new ImageIcon(MainMenu.class.getResource("/img/Hint.png"));
+	    hintButton.setIcon(icon);
+	    hintButton.setOpaque(false);
+	    hintButton.setContentAreaFilled(false);
+	    hintButton.setBorderPainted(false);
+	    JPanel buttonsPanel = new JPanel();
+	    buttonsPanel.setLayout(new FlowLayout());
+        //topPanel.add(hintButton, BorderLayout.EAST);
+	    buttonsPanel.add(hintButton);
+	    topPanel.add(buttonsPanel, BorderLayout.EAST);
+
+        // add a back button maybe?
+        topPanel.add(getBackButton(), BorderLayout.WEST);
 
         hintButton.addMouseListener(new MouseAdapter() {
 
             @Override
             public void mouseClicked(MouseEvent mouseEvent) {
                 treasureMode.getNextTreasurePosition();
-                updatePlayerInformation();
+            }
+        });
+
+        resetButton = new JButton("");
+        resetButton.setIcon(new ImageIcon(QTreasureModePanel.class.getResource("/img/Reset.png")));
+        resetButton.setOpaque(false);
+        resetButton.setContentAreaFilled(false);
+        resetButton.setBorderPainted(false);
+        buttonsPanel.add(resetButton);
+        //topPanel.add(resetButton, BorderLayout.EAST);
+        resetButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                int choice = JOptionPane.showConfirmDialog(frame,
+                        "Are you sure you want to reset?", "Reset", JOptionPane.YES_NO_OPTION);
+                if(choice == 0) {
+                    mode.player.setTreasureGrid(null);
+                    mode.player.setNoPieces(0);
+                    mode.player.setLastDisplayedHint(-1);
+                    mode.player.setTreasureModeGrid(null);
+                    frame.setActivePanel(parent);
+                }
             }
         });
 
         add(topPanel, BorderLayout.NORTH);
 
-        //////////////////////// THE BUTTONS / LEVELS ///////////////////////////////////////////////////////////////
-        buttonPanel = new JPanel(){
+        //////////////////////// THE BUTTONS / LEVELS ///////////////////////////////
+        buttonPanel = new JPanel();
 
-//            @Override
-//            protected void paintComponent(Graphics g) {
-//
-//                super.paintComponent(g);
-//                try {
-//                    g.drawImage(ImageIO.read( new File("C:\\Users\\User\\IdeaProjects\\temp\\prova\\src\\logic\\image.jpg")),
-//                                                0, 0, buttonPanel.getWidth(), buttonPanel.getHeight(), null);
-//                } catch (IOException exp) {
-//                    System.out.println( "Printim idiot");
-//                }
-//            }
+        int gridSize = treasureMode.getGridSize();
+        buttons = new JButton[gridSize*gridSize];
+        buttonPanel.setLayout(new GridLayout(6, 6, 0, 0));
 
+        for (int i = 0; i < gridSize * gridSize; i++) {
+            buttons[i] = new JButton();
+            buttons[i].setActionCommand("" + i);
 
-        };
-        buttons = new JButton[36];
-        buttonPanel.setLayout(new GridLayout(6, 6));
-
-        for (int i = 0; i < 36; i++) {
-            buttons[i] = new JButton("" + (i + 1));
-
-            ///// To put an icon to buttons //////////
-//            try {
-//                Image img = ImageIO.read(new File("C:\\Users\\User\\IdeaProjects\\temp\\prova\\src\\logic\\button.jpg"));
-//                buttons[i].setIcon(new ImageIcon(img));
-//            } catch (Exception ex) {
-//                System.out.println(ex);
-//            }
-
+                        
             JPanel temp = new JPanel();
             temp.setLayout(new FlowLayout());
             temp.setOpaque(false);
             temp.add(buttons[i]);
 
             buttonPanel.add(temp);
+            buttonPanel.setBackground(new Color(152, 216, 216));
 
             buttons[i].addMouseListener(new MouseAdapter() {
-
                 @Override
                 public void mouseClicked(MouseEvent mouseEvent) {
-                    int i = Integer.parseInt(((JButton) mouseEvent.getSource()).getText());
-                    startQuadrillionGame(i - 1);
+                    if( ((JButton)mouseEvent.getSource()).isEnabled()) {
+                        int i = Integer.parseInt(((JButton) mouseEvent.getSource()).getActionCommand());
+                        startQuadrillionGame(i);
+                    }
                 }
             });
         }
 
-        buttonPanel.setOpaque(false);
+        // set button attributes, loaded from Treasure Mode when saved
+        initiateButtons();
+
+        //buttonPanel.setOpaque(false);
         add(buttonPanel, BorderLayout.CENTER);
 
-        /////////////////////////// TREASURE PANEL ///////////////////////////////////////////////////////////////S
+        /////////////////////////// TREASURE PANEL //////////////////////////////////////
 
         QThemeManager man = new QThemeManager();
 
@@ -123,45 +150,63 @@ public class QTreasureModePanel extends QModePanel {
                 .build(600000);
 
 
-        treasurePanel = new QPieceCollectionPanel(this, frame, tempgame.getPieces(), man.getThemes().get(0));
+        treasurePanel = new QPieceCollectionPanel(this, frame, tempgame.getPieces(), man.getTheme(mode.player.getCurrentTheme()));
 
         for(int i = 0; i < 12; i++){
             Component c = treasurePanel.getDisplayOfHostedPiece( tempgame.getPieces().get(i));
             ((QPieceCollectionPanel.QPieceDisplay) c).setAvailable(false);
         }
+        for (int i = 0; i < mode.player.getNoPieces(); i++) {
+            Component c = treasurePanel.getDisplayOfHostedPiece( tempgame.getPieces().get(i));
+            ((QPieceCollectionPanel.QPieceDisplay) c).setAvailable(true);
+        }
 
         add(treasurePanel, BorderLayout.EAST);
-
         frame.setActivePanel(this);
     }
 
-    @Override
-    protected void paintComponent(Graphics g) {
+//    @Override
+//    protected void paintComponent(Graphics g) {
+//
+//        super.paintComponent(g);
+//        try {
+//            BufferedImage img = ImageIO.read(getClass().getResource("image2.jpg"));
+//            g.drawImage(img,0, 0,null);
+//        } catch (IOException exp) {
+//            //exp.printStackTrace();
+//            //System.out.println( "Printim idiot");
+//        }
+//    }
 
-        super.paintComponent(g);
-        try {
-            g.drawImage(ImageIO.read( new File("C:\\Users\\User\\IdeaProjects\\temp\\prova\\src\\logic\\image2.jpg")),
-                                        0, 0,null);
-        } catch (IOException exp) {
-            System.out.println( "Printim idiot");
-        }
-    }
-
-    ///////////////////// UPDATE BUTTON COLORS ///////////////////////////////////////////////////////
+    ///////////////////// UPDATE BUTTON COLORS //////////////////////////
 
     public void updateAdjacentColor(int buttonIndex) {
 
-        buttons[buttonIndex].setBackground(Color.GREEN);
+        //buttons[buttonIndex].setBackground(Color.GREEN);
+        buttons[buttonIndex].setVisible( true);
+        buttons[buttonIndex].setEnabled( true);
     }
-
+    
     public void updatePlayedColor(int buttonIndex) {
 
-        buttons[buttonIndex].setBackground(Color.CYAN);
+        //buttons[buttonIndex].setBackground(Color.GREEN);
+    	// vendos kryqin
+        buttons[buttonIndex].setVisible( true);
+        buttons[buttonIndex].setEnabled( true);
     }
+
 
     public void updateTreasureColor(int buttonIndex) {
 
-        buttons[buttonIndex].setBackground(Color.RED);
+        //buttons[buttonIndex].setBackground(Color.RED);
+    	//vendos thesarin
+//    	try{
+//            buttons[buttonIndex].setIcon( new ImageIcon( ImageIO.read(getClass().getResource(  newIcon))));
+//        }
+//        catch( Exception e) {
+//            e.printStackTrace();
+//        }
+        buttons[buttonIndex].setVisible( true);
     }
 
     public void updateTreasurePanel( QPiece newPiece) {
@@ -170,13 +215,62 @@ public class QTreasureModePanel extends QModePanel {
         ((QPieceCollectionPanel.QPieceDisplay) c).setAvailable(true);
     }
 
+    public void initiateButtons(){
+        int[][] gameGrid = treasureMode.getGameGrid();
+        int gridSize = treasureMode.getGridSize();
+        
+
+        // adjust buttons visibility and enable/disable
+        for( int i = 0; i < gridSize; i++){
+            for( int j = 0; j < gridSize; j++){
+            	String newIcon = "/img/island" + (int)(Math.random()* 4 + 1) + ".png";
+            	buttons[i * gridSize + j].setContentAreaFilled(false);
+            	//buttons[i  * gridSize + j].setBackground(new Color(152, 216, 216));
+                //Remove border
+                buttons[i * gridSize + j].setBorderPainted(false);
+            	try{
+                    buttons[i * gridSize + j].setIcon( new ImageIcon( ImageIO.read(getClass().getResource(  newIcon))));
+                }
+                catch( Exception e) {
+                    e.printStackTrace();
+                }
+            	
+                if( gameGrid[i][j] == locked){
+                    buttons[ i * gridSize + j].setEnabled( false);
+                    buttons[ i * gridSize + j].setVisible( false);
+                }
+                else if ( gameGrid[i][j] == revealed){
+                    buttons[ i * gridSize + j].setEnabled( false);
+                    buttons[ i * gridSize + j].setVisible( true);
+                }
+                else{
+                    buttons[ i * gridSize + j].setEnabled( true);
+                    buttons[ i * gridSize + j].setVisible( true);
+                }
+            }
+        }
+
+        // manually set corner buttons
+        buttons[0].setVisible( true);
+        buttons[0].setEnabled(true);
+
+        buttons[gridSize - 1].setVisible( true);
+        buttons[gridSize - 1].setEnabled(true);
+
+        buttons[gridSize *( gridSize - 1)].setVisible( true);
+        buttons[gridSize *( gridSize - 1)].setEnabled(true);
+
+        buttons[gridSize * gridSize - 1].setVisible( true);
+        buttons[gridSize * gridSize - 1].setEnabled(true);
+    }
+
 
 /////////////////////////////////////////// GAME OVER //////////////////////////////////////////////////////////
 
     public void displayGameOver() {
-        JOptionPane.showMessageDialog( frame, "YOU DIED");
+        JOptionPane.showMessageDialog( frame, "You died looking for treasure...");
         treasureMode = null;
-        frame.setActivePanel( new QMainMenu( null,frame));
+        frame.setActivePanel( parent);
     }
 
     @Override
@@ -185,12 +279,26 @@ public class QTreasureModePanel extends QModePanel {
         if( msg.getContents()[Message.VALID] && msg.getContents()[Message.GAME_WON]){
             QAward award = treasureMode.evaluateAwardForCurrentGame( true);
             treasureMode.updateStateOfMode( true);
-        } else if( msg.getContents()[Message.VALID] && msg.getContents()[Message.GAME_OVER]){           //////////////////// SHOULD BE CHANGED  ////////////////////
-            QAward award = treasureMode.evaluateAwardForCurrentGame( true);
-            treasureMode.updateStateOfMode( true);
+            if(award.getPieceAward() == null)
+                JOptionPane.showMessageDialog(frame, "You loot the island. Your spoils are: " +
+                                           award.getCoinsAwardNo() + " coins.\n" +
+                                           award.getTimeAwardNo() + " time powerup(s)\n" +
+                                           award.getHealthAwardNo() + " health powerup(s)\n" +
+                                           award.getHintsAwardNo() + " hint powerup(s).");
+            else {
+                JOptionPane.showMessageDialog(frame, "You loot the island. Your spoils are: " +
+                        award.getCoinsAwardNo() + " coins.\n" +
+                        award.getTimeAwardNo() + " time powerup(s)\n" +
+                        award.getHealthAwardNo() + " health powerup(s)\n" +
+                        award.getHintsAwardNo() + " hint powerup(s)\n" +
+                        "You also found a piece!");
+            }
+        } else if( msg.getContents()[Message.VALID] && (msg.getContents()[Message.GAME_OVER] || msg.getContents()[Message.GAME_UP])) {
+            QAward award = treasureMode.evaluateAwardForCurrentGame( false);
+            treasureMode.updateStateOfMode( false);
         }
 
-        treasureMode.updatePanel();
+        treasureMode.saveMode();
     }
 
 }

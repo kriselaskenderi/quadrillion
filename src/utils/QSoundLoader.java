@@ -12,7 +12,7 @@ public class QSoundLoader {
     private static Map<String, AudioInputStream> streams;
     private static QSoundLoader loader;
     private static Map<Integer, SoundDriver> soundsPlaying;
-    public static QSoundLoader getInstance() {
+    public synchronized static QSoundLoader getInstance() {
         if(loader == null) {
             loader = new QSoundLoader();
         }
@@ -32,12 +32,14 @@ public class QSoundLoader {
         files.put("beat","/sounds/heartbeat.wav");
         files.put("air", "/sounds/air.wav");
         files.put("victory", "/sounds/victory.wav");
+        files.put("chaching", "/sounds/chaching.wav");
         refresh("click");
         refresh("die");
         refresh("beat");
         refresh("shot");
         refresh("air");
         refresh("victory");
+        refresh("chaching");
     }
 
     public synchronized void playClip(String clipName) {
